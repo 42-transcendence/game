@@ -7,6 +7,7 @@ export function GameCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
+        // XXX
         if (canvasRef.current === null) {
             throw new Error("no canvas");
         }
@@ -32,7 +33,7 @@ export function GameCanvas() {
         const render = Matter.Render.create({
             element: document.body,
             engine: engine,
-            canvas: canvasRef.current,
+            canvas: canvasRef.current, // XXX
             options: {
                 width: WIDTH,
                 height: HEIGHT,
@@ -44,6 +45,7 @@ export function GameCanvas() {
         const canvas = render.canvas;
         const canvasContext = canvas.getContext("2d");
 
+        // XXX
         if (canvasContext === null) {
             throw new Error("no canvas");
         }
@@ -260,6 +262,7 @@ export function GameCanvas() {
             min: { x: 0, y: 0 },
             max: { x: WIDTH, y: HEIGHT },
         });
+
     }, []);
 
     return <canvas ref={canvasRef}></canvas>;
