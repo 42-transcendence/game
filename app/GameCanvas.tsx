@@ -134,9 +134,10 @@ export function GameCanvas() {
 
         // Event On!
         Matter.Events.on(runner, "tick", (_event: Event) => {
+            // XXX 이거 3번째 인자로 pair배열이 들어간다는데 뭔지 잘 모르겠습니다
             const collided =
-                Matter.Collision.collides(paddle1, circle, []) ??
-                Matter.Collision.collides(paddle2, circle, []);
+                Matter.Collision.collides(paddle1, circle) ??
+                Matter.Collision.collides(paddle2, circle);
             const velocity = Matter.Body.getVelocity(circle);
 
             if (collided?.collided === true) {
