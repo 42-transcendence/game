@@ -3,7 +3,7 @@
 import Matter from "matter-js";
 import { useEffect, useRef } from "react";
 
-export function GameCanvas() {
+export function GravityGameCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -28,6 +28,31 @@ export function GameCanvas() {
         // create engine
         const engine = Matter.Engine.create({ gravity: { x: 0, y: 0 } });
         const world = engine.world;
+
+
+        const attractiveBody1 = Matter.Bodies.circle(
+            700,
+            1200,
+            50,
+            {
+                isStatic: true,
+                collisionFilter: {
+                    mask: lineCategory
+                }
+            });
+
+        const attractiveBody2 = Matter.Bodies.circle(
+            300,
+            650,
+            50,
+            {
+                isStatic: true,
+                collisionFilter: {
+                    mask: lineCategory
+                }
+            });
+
+        Matter.Composite.add(world, [attractiveBody1, attractiveBody2]);
 
         // create renderer
         const render = Matter.Render.create({
@@ -82,8 +107,8 @@ export function GameCanvas() {
             const prevPointX = paddle1.position.x;
             const prevPointY = paddle1.position.y;
             const mousePos = calculateMousePos(event);
-            paddle1Y = mousePos.y - PADDLE_RADIUS / 2;
             paddle1X = mousePos.x - PADDLE_RADIUS / 2;
+            paddle1Y = mousePos.y - PADDLE_RADIUS / 2;
             Matter.Body.setPosition(paddle1, { x: paddle1X, y: paddle1Y });
             //패들 중앙선 침범 금지~!
             if (paddle1.position.y < HEIGHT / 2 + PADDLE_RADIUS) {
@@ -236,6 +261,9 @@ export function GameCanvas() {
                     y: 35,
                 });
             }
+            //중력효과!
+            attractive(attractiveBody1, circle, 1);
+            attractive(attractiveBody2, circle, 0.5);
             canvasContext.fillText(
                 "Player 2 score: " + player2Score + `/${WIN_SCORE}`,
                 WIDTH / 2 - 150,
@@ -247,6 +275,14 @@ export function GameCanvas() {
                 1900,
             );
         });
+
+        //gravity
+        function attractive(attractiveBody: Matter.Body, body: Matter.Body, gravityConstant: number) {
+            const normal = { x: attractiveBody.position.x - body.position.x, y: attractiveBody.position.y - body.position.y }
+            const distance = Math.sqrt(normal.x * normal.x + normal.y * normal.y);
+            const force = { x: gravityConstant * normal.x / (distance * + 1), y: gravityConstant * normal.y / (distance + 1) };
+            Matter.Body.setVelocity(body, { x: body.velocity.x + force.x / 3, y: body.velocity.y + force.y / 3 })
+        }
 
         //ball
         const circle = Matter.Bodies.circle(500, 960, BALL_RADIUS, {
