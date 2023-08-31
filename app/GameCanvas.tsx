@@ -7,6 +7,24 @@ export function GameCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
+
+        // replay
+        type PhysicsAttribute = {
+            position: { x: number, y: number },
+            velocity: { x: number, y: number },
+            // acceleration: { x: number, y: number }
+        }
+        type Frame = {
+            paddle1: PhysicsAttribute,
+            paddle2: PhysicsAttribute,
+            ball: PhysicsAttribute,
+            player1Score: number,
+            player2Score: number
+        }
+        const frames: Frame[] = [];
+
+
+
         // XXX
         if (canvasRef.current === null) {
             throw new Error("no canvas");
@@ -16,7 +34,7 @@ export function GameCanvas() {
         const HEIGHT = 1920;
         const BALL_RADIUS = 36;
         const PADDLE_RADIUS = 80;
-        const WIN_SCORE = 10;
+        const WIN_SCORE = 3;
 
         let player1Score = 0;
         let player2Score = 0;
@@ -206,23 +224,6 @@ export function GameCanvas() {
                 Matter.Body.setVelocity(circle, { x: 15, y: 15 });
                 Matter.Body.setAngularVelocity(circle, 0);
             }
-            if (player1Score >= WIN_SCORE) {
-                canvasContext.fillText(
-                    "Player 1 Wins!",
-                    WIDTH / 2 - 100,
-                    HEIGHT / 2,
-                );
-                Matter.Render.stop(render);
-                Matter.Runner.stop(runner);
-            } else if (player2Score >= WIN_SCORE) {
-                canvasContext.fillText(
-                    "Player 2 Wins!",
-                    WIDTH / 2 - 100,
-                    HEIGHT / 2,
-                );
-                Matter.Render.stop(render);
-                Matter.Runner.stop(runner);
-            }
             //속도제한
             if (circle.velocity.x > 35) {
                 Matter.Body.setVelocity(circle, {
@@ -235,6 +236,28 @@ export function GameCanvas() {
                     x: circle.velocity.x,
                     y: 35,
                 });
+            }
+            //승점계산
+            if (player1Score >= WIN_SCORE) {
+                canvasContext.fillText(
+                    "Player 1 Wins!",
+                    WIDTH / 2 - 100,
+                    HEIGHT / 2,
+                );
+                Matter.Engine.clear(engine);
+                Matter.Render.stop(render);
+                Matter.Runner.stop(runner);
+                playFrame();
+            } else if (player2Score >= WIN_SCORE) {
+                canvasContext.fillText(
+                    "Player 2 Wins!",
+                    WIDTH / 2 - 100,
+                    HEIGHT / 2,
+                );
+                Matter.Engine.clear(engine);
+                Matter.Render.stop(render);
+                Matter.Runner.stop(runner);
+                playFrame();
             }
             canvasContext.fillText(
                 "Player 2 score: " + player2Score + `/${WIN_SCORE}`,
@@ -263,6 +286,167 @@ export function GameCanvas() {
             min: { x: 0, y: 0 },
             max: { x: WIDTH, y: HEIGHT },
         });
+
+        // frame_save
+        const framesPerSecond = 60;
+        setInterval(setFrame, 1000 / framesPerSecond, paddle1, paddle1Velocity, paddle2, circle);
+
+        // replay
+        function setFrame(paddle1: Matter.Body, paddle1V: { x: number, y: number }, paddle2: Matter.Body, ball: Matter.Body) {
+            if (player1Score === WIN_SCORE || player2Score === WIN_SCORE)
+                return;
+            const frame: Frame = {
+                paddle1: {
+                    position: { x: paddle1.position.x, y: paddle1.position.y },
+                    velocity: { x: paddle1V.x, y: paddle1V.y },
+                },
+                paddle2: {
+                    position: { x: paddle2.position.x, y: paddle2.position.y },
+                    velocity: { x: 0, y: 0 },
+                },
+                ball: {
+                    position: { x: ball.position.x, y: ball.position.y },
+                    velocity: { x: ball.velocity.x, y: ball.velocity.y },
+                }
+                ,
+                player1Score: player1Score,
+                player2Score: player2Score
+            }
+            frames.push(frame);
+
+            if (counter++ % 120 === 0) {
+                console.log("in set!", frame)
+            }
+        }
+        let counter = 0;
+        function playFrame() {
+            // XXX
+            if (canvasRef.current === null) {
+                throw new Error("no canvas");
+            }
+
+            // create replay engine
+            const replayEngine = Matter.Engine.create({ gravity: { x: 0, y: 0 } });
+            const replayWorld = replayEngine.world;
+
+            // create renderer
+            const replayRender = Matter.Render.create({
+                element: document.body,
+                engine: replayEngine,
+                canvas: canvasRef.current,
+                options: {
+                    width: WIDTH,
+                    height: HEIGHT,
+                    showAngleIndicator: true,
+                    showCollisions: true,
+                },
+            });
+
+            const replayCanvas = replayRender.canvas;
+            const replayCanvasContext = replayCanvas.getContext("2d");
+
+            // XXX
+            if (replayCanvasContext === null) {
+                throw new Error("no canvas");
+            }
+
+            replayCanvasContext.font = "30px arial";
+            Matter.Render.run(replayRender);
+            // Player1 paddle
+            let paddle1X = WIDTH / 2;
+            let paddle1Y = HEIGHT - BALL_RADIUS - 50;
+            const paddle1 = Matter.Bodies.circle(
+                paddle1X,
+                paddle1Y,
+                PADDLE_RADIUS,
+                {
+                    isStatic: true,
+                    restitution: 1,
+                    frictionStatic: 0,
+                    frictionAir: 0,
+                    friction: 0,
+                },
+            );
+            Matter.Composite.add(replayWorld, paddle1);
+            // Player2 paddle
+            const paddle2X = WIDTH / 2,
+                paddle2Y = BALL_RADIUS + 50;
+            const paddle2 = Matter.Bodies.circle(
+                paddle2X,
+                paddle2Y,
+                PADDLE_RADIUS,
+                {
+                    isStatic: true,
+                    restitution: 1,
+                    frictionStatic: 0,
+                    frictionAir: 0,
+                    friction: 0,
+                },
+            );
+            Matter.Composite.add(replayWorld, paddle2);
+            //add line
+            Matter.Composite.add(
+                replayWorld,
+                Matter.Bodies.rectangle(WIDTH / 2, HEIGHT / 2, WIDTH, 2, {
+                    isStatic: true,
+                    collisionFilter: {
+                        mask: lineCategory,
+                    },
+                }),
+            );
+            // create runner
+            const replayRunner = Matter.Runner.create();
+            Matter.Runner.run(replayRunner, replayEngine);
+
+            //ball
+            const circle = Matter.Bodies.circle(500, 960, BALL_RADIUS, {
+                frictionStatic: 0,
+                frictionAir: 0,
+                friction: 0,
+                restitution: 1,
+            });
+            Matter.Body.setInertia(circle, 0.00001);
+            Matter.Body.setVelocity(circle, { x: 15, y: 15 });
+            Matter.Composite.add(replayWorld, circle);
+
+            Matter.Render.lookAt(replayRender, {
+                min: { x: 0, y: 0 },
+                max: { x: WIDTH, y: HEIGHT },
+            });
+
+            setInterval(() => {
+                if (frames.length === 0) {
+                    Matter.Engine.clear(replayEngine);
+                    Matter.Render.stop(replayRender);
+                    Matter.Runner.stop(replayRunner);
+                    return;
+                }
+                const nowFrame: Frame = frames[0];
+                const nowPaddle1Position = nowFrame.paddle1.position;
+                const nowPaddle1Velocity = nowFrame.paddle1.velocity;
+                const nowPaddle2Position = nowFrame.paddle2.position;
+                const nowPaddle2Velocity = nowFrame.paddle2.velocity;
+                const nowBallPosition = nowFrame.ball.position;
+                const nowBallVelocity = nowFrame.ball.velocity;
+                Matter.Body.setPosition(paddle1, nowPaddle1Position);
+                Matter.Body.setVelocity(paddle1, nowPaddle1Velocity);
+                Matter.Body.setPosition(paddle2, nowPaddle2Position);
+                Matter.Body.setVelocity(paddle2, nowPaddle2Velocity);
+                Matter.Body.setPosition(circle, nowBallPosition);
+                Matter.Body.setVelocity(circle, nowBallVelocity);
+                replayCanvasContext.fillText(
+                    "Player 2 score: " + nowFrame.player2Score + `/${WIN_SCORE}`,
+                    WIDTH / 2 - 150,
+                    25,
+                );
+                replayCanvasContext.fillText(
+                    "Player 1 score: " + nowFrame.player1Score + `/${WIN_SCORE}`,
+                    WIDTH / 2 - 150,
+                    1900,
+                );
+                frames.splice(0, 1);
+            }, 1000 / framesPerSecond);
+        }
 
     }, []);
 
