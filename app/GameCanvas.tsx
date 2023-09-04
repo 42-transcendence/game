@@ -16,7 +16,9 @@ export function GameCanvas() {
         type Frame = {
             id: number,
             paddle1: PhysicsAttribute,
+            paddle1Hit: boolean,
             paddle2: PhysicsAttribute,
+            paddle2Hit: boolean,
             ball: PhysicsAttribute,
             player1Score: number,
             player2Score: number
@@ -259,7 +261,7 @@ export function GameCanvas() {
                 }
             }
 
-            private sendFrame() {
+            private sendFrame(paddle1Hit: boolean, paddle2Hit: boolean) {
                 if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
                     return;
                 }
@@ -269,15 +271,16 @@ export function GameCanvas() {
                         position: { x: this.paddle1.position.x, y: this.paddle1.position.y },
                         velocity: { x: this.paddle1Velocity.x, y: this.paddle1Velocity.y },
                     },
+                    paddle1Hit,
                     paddle2: {
                         position: { x: this.paddle2.position.x, y: this.paddle2.position.y },
                         velocity: { x: 0, y: 0 },
                     },
+                    paddle2Hit,
                     ball: {
                         position: { x: this.circle.position.x, y: this.circle.position.y },
                         velocity: { x: this.circle.velocity.x, y: this.circle.velocity.y },
-                    }
-                    ,
+                    },
                     player1Score: this.player1Score,
                     player2Score: this.player2Score
                 }
@@ -350,8 +353,18 @@ export function GameCanvas() {
                     }
                     const collided = Matter.Collision.collides(this.paddle1, this.circle, 0) ?? Matter.Collision.collides(this.paddle2, this.circle, 0);
                     const velocity = Matter.Body.getVelocity(this.circle);
+                    let paddle1Hit = false;
+                    let paddle2Hit = false;
+                    let player1Score = false;
+                    let player2Score = false;
 
                     if (collided?.collided === true) {
+                        if (collided.bodyA.position.y > this.HEIGHT / 2) {
+                            paddle1Hit = true;
+                        }
+                        else {
+                            paddle2Hit = true;
+                        }
                         this.reflection(collided.normal, this.circle)
                         Matter.Body.setVelocity(this.circle, {
                             x: this.circle.velocity.x + this.paddle1Velocity.x / 8,
@@ -371,7 +384,7 @@ export function GameCanvas() {
                     this.attractive(this.attractiveBody1, this.circle, 1);
                     this.attractive(this.attractiveBody2, this.circle, 0.5);
                     //프레임 보내기
-                    this.sendFrame();
+                    this.sendFrame(paddle1Hit, paddle2Hit);
                     //승점계산
                     this.judgeWinner();
                     this.drawScore();
