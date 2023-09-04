@@ -12,16 +12,15 @@ export function GameCanvas() {
         type PhysicsAttribute = {
             position: { x: number, y: number },
             velocity: { x: number, y: number },
-            // acceleration: { x: number, y: number }
         }
         type Frame = {
+            id: number,
             paddle1: PhysicsAttribute,
             paddle2: PhysicsAttribute,
             ball: PhysicsAttribute,
             player1Score: number,
             player2Score: number
         }
-        const frames: Frame[] = [];
 
         class Game {
             private WIDTH = 1000;
@@ -34,6 +33,7 @@ export function GameCanvas() {
             private player2Score = 0;
             //paddle1 velocity
             private paddle1Velocity = { x: 0, y: 0 };
+            private paddle2Velocity = { x: 0, y: 0 };
             //ignore collision
             private lineCategory = 0x0002;
             // create engine
@@ -83,6 +83,7 @@ export function GameCanvas() {
                 restitution: 1,
             });
             private framesPerSecond = 60;
+            private frames: Frame[] = [];
 
             // gravity object
             private attractiveBody1 = Matter.Bodies.circle(
@@ -258,6 +259,31 @@ export function GameCanvas() {
                 }
             }
 
+            private sendFrame() {
+                if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
+                    return;
+                }
+                const frame: Frame = {
+                    id: this.frames.length,
+                    paddle1: {
+                        position: { x: this.paddle1.position.x, y: this.paddle1.position.y },
+                        velocity: { x: this.paddle1Velocity.x, y: this.paddle1Velocity.y },
+                    },
+                    paddle2: {
+                        position: { x: this.paddle2.position.x, y: this.paddle2.position.y },
+                        velocity: { x: 0, y: 0 },
+                    },
+                    ball: {
+                        position: { x: this.circle.position.x, y: this.circle.position.y },
+                        velocity: { x: this.circle.velocity.x, y: this.circle.velocity.y },
+                    }
+                    ,
+                    player1Score: this.player1Score,
+                    player2Score: this.player2Score
+                }
+                this.frames.push(frame);
+            }
+
             //gravity
             private attractive(attractiveBody: Matter.Body, body: Matter.Body, gravityConstant: number) {
                 const normal = { x: attractiveBody.position.x - body.position.x, y: attractiveBody.position.y - body.position.y }
@@ -316,29 +342,6 @@ export function GameCanvas() {
                     max: { x: this.WIDTH, y: this.HEIGHT },
                 });
 
-                setInterval(() => {
-                    if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
-                        return;
-                    }
-                    const frame: Frame = {
-                        paddle1: {
-                            position: { x: this.paddle1.position.x, y: this.paddle1.position.y },
-                            velocity: { x: this.paddle1Velocity.x, y: this.paddle1Velocity.y },
-                        },
-                        paddle2: {
-                            position: { x: this.paddle2.position.x, y: this.paddle2.position.y },
-                            velocity: { x: 0, y: 0 },
-                        },
-                        ball: {
-                            position: { x: this.circle.position.x, y: this.circle.position.y },
-                            velocity: { x: this.circle.velocity.x, y: this.circle.velocity.y },
-                        }
-                        ,
-                        player1Score: this.player1Score,
-                        player2Score: this.player2Score
-                    }
-                    frames.push(frame);
-                }, 1000 / this.framesPerSecond);
                 // Event On!
                 Matter.Events.on(this.runner, "tick", (_event: Event) => {
                     // XXX
@@ -356,6 +359,8 @@ export function GameCanvas() {
                         });
                         this.paddle1Velocity = { x: 0, y: 0 };
                     }
+                    //paddle2의 속도추가
+                    Matter.Body.setPosition(this.paddle2, { x: this.paddle2.position.x + this.paddle2Velocity.x, y: this.paddle2.position.y + this.paddle2Velocity.y })
                     //반사!
                     this.wallReflection(velocity)
                     //점수 겟또
@@ -365,6 +370,8 @@ export function GameCanvas() {
                     //중력!
                     this.attractive(this.attractiveBody1, this.circle, 1);
                     this.attractive(this.attractiveBody2, this.circle, 0.5);
+                    //프레임 보내기
+                    this.sendFrame();
                     //승점계산
                     this.judgeWinner();
                     this.drawScore();
