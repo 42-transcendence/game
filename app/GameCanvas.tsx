@@ -110,7 +110,7 @@ export function GameCanvas() {
                 });
 
 
-            constructor() {
+            constructor(private websocket: WebSocket) {
                 // XXX
                 if (canvasRef.current === null) {
                     throw new Error("no canvas");
@@ -136,6 +136,11 @@ export function GameCanvas() {
                 this.canvasContext.font = "30px arial";
                 Matter.Body.setInertia(this.circle, 0.00001);
                 Matter.Body.setVelocity(this.circle, { x: 15, y: 15 });
+
+                websocket.binaryType = 'arraybuffer';
+                websocket.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+
+                }
             }
 
             private calculateMousePos(event: MouseEvent) {
@@ -322,8 +327,8 @@ export function GameCanvas() {
                         y: (this.paddle1.position.y - prevPointY) / deltaT,
                     };
                 });
-                //중력객체 추가
-                this.setGravity();
+                // //중력객체 추가
+                // this.setGravity();
                 //add paddles
                 Matter.Composite.add(this.world, this.paddle1);
                 Matter.Composite.add(this.world, this.paddle2);
@@ -355,8 +360,6 @@ export function GameCanvas() {
                     const velocity = Matter.Body.getVelocity(this.circle);
                     let paddle1Hit = false;
                     let paddle2Hit = false;
-                    let player1Score = false;
-                    let player2Score = false;
 
                     if (collided?.collided === true) {
                         if (collided.bodyA.position.y > this.HEIGHT / 2) {
@@ -376,13 +379,13 @@ export function GameCanvas() {
                     Matter.Body.setPosition(this.paddle2, { x: this.paddle2.position.x + this.paddle2Velocity.x, y: this.paddle2.position.y + this.paddle2Velocity.y })
                     //반사!
                     this.wallReflection(velocity)
-                    //점수 겟또
-                    this.getScore();
+                    // //점수 겟또
+                    // this.getScore();
                     //속도제한
                     this.limitVelocity();
-                    //중력!
-                    this.attractive(this.attractiveBody1, this.circle, 1);
-                    this.attractive(this.attractiveBody2, this.circle, 0.5);
+                    // //중력!
+                    // this.attractive(this.attractiveBody1, this.circle, 1);
+                    // this.attractive(this.attractiveBody2, this.circle, 0.5);
                     //프레임 보내기
                     this.sendFrame(paddle1Hit, paddle2Hit);
                     //승점계산
