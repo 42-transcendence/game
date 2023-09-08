@@ -290,26 +290,28 @@ export class Game {
 	}
 
 	private determinantNormal(circlePos: { x: number, y: number }, pointInEllipse: { x: number, y: number }): number {
-		console.log((((this.WIDTH / 2) ** 2) * pointInEllipse.y * (pointInEllipse.x - circlePos.x)) / (((this.HEIGHT / 2) ** 2) * pointInEllipse.x * (pointInEllipse.y - circlePos.y)), "re")
-		// console.log(`x:`, ((this.WIDTH / 2) ** 2) * pointInEllipse.y * (pointInEllipse.x - circlePos.x), "y: ", ((this.HEIGHT / 2) ** 2) * pointInEllipse.x * (pointInEllipse.y - circlePos.y))
-		// console.log("circlePos: ", circlePos, "pointInEllipse: ", pointInEllipse);
 		return (((this.WIDTH / 2) ** 2) * pointInEllipse.y * (pointInEllipse.x - circlePos.x)) - (((this.HEIGHT / 2) ** 2) * pointInEllipse.x * (pointInEllipse.y - circlePos.y));
 	}
 
+	private review(circlePos: { x: number, y: number }, pointInEllipse: { x: number, y: number }): number {
+		return ((((this.WIDTH / 2) ** 2) * pointInEllipse.y * (pointInEllipse.x - circlePos.x)) / (((this.HEIGHT / 2) ** 2) * pointInEllipse.x * (pointInEllipse.y - circlePos.y)));
+	}
+
 	private oneQuadrantLogic(circlePos: { x: number, y: number }): number {
-		let upper = Math.atan(circlePos.y / circlePos.x);
-		let lower = upper - Math.asin(this.BALL_RADIUS / Math.sqrt(circlePos.x ** 2 + circlePos.y ** 2));
-		if (lower < 0) {
-			lower = 0;
-		}
+		let upper = Math.PI / 2;
+		let lower = 0;
 		while (true) {
 			const theta = (upper + lower) / 2;
 			const pointInEllipse = this.makePointInEllipse(theta);
-			if ((upper - lower) * (180 / Math.PI) < 0.0001) {
-				// console.log(upper, lower)
-				// console.log("check", this.determinantNormal(circlePos, pointInEllipse));
-				// console.log((pointInEllipse.x / (this.WIDTH / 2)) ** 2 + (pointInEllipse.y / (this.HEIGHT / 2)) ** 2)
-				return theta
+			if ((upper - lower) * (180 / Math.PI) < 0.001) {
+				const num = this.review(circlePos, pointInEllipse)
+				if (num > 1.1 || num < 0.9) {
+					upper = Math.PI * (3 / 4);
+					lower = -1 * Math.PI / 4;
+				}
+				else {
+					return theta
+				}
 			}
 			if (this.determinantNormal(circlePos, pointInEllipse) < 0) {
 				upper = theta;
@@ -320,13 +322,11 @@ export class Game {
 			else {
 				return theta
 			}
-			console.log("in");
 		}
 	}
 
 	private ellipseReflection() {
 		const circlePos = { x: this.circle.position.x - this.WIDTH / 2, y: this.circle.position.y - this.HEIGHT / 2 };
-		const newCirclePos = { x: 0, y: 0 };
 		const normal = { x: 0, y: 0 };
 		// x축 대칭
 		circlePos.y *= -1;
@@ -335,8 +335,6 @@ export class Game {
 			const pointInEllipse = this.makePointInEllipse(theta);
 			normal.x = pointInEllipse.x - circlePos.x;
 			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.BALL_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.BALL_RADIUS * Math.sin(theta);
 		}
 		else if (0 > circlePos.x && 0 < circlePos.y) { // 2사분면
 			circlePos.x *= -1;
@@ -344,10 +342,7 @@ export class Game {
 			const pointInEllipse = this.makePointInEllipse(theta);
 			normal.x = pointInEllipse.x - circlePos.x;
 			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.BALL_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.BALL_RADIUS * Math.sin(theta);
 			normal.x *= -1;
-			newCirclePos.x *= -1;
 		}
 		else if (0 > circlePos.x && 0 > circlePos.y) { // 3사분면
 			circlePos.x *= -1;
@@ -356,12 +351,8 @@ export class Game {
 			const pointInEllipse = this.makePointInEllipse(theta);
 			normal.x = pointInEllipse.x - circlePos.x;
 			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.BALL_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.BALL_RADIUS * Math.sin(theta);
 			normal.x *= -1;
 			normal.y *= -1;
-			newCirclePos.x *= -1;
-			newCirclePos.y *= -1;
 		}
 		else if (0 < circlePos.x && 0 > circlePos.y) { // 4사분면
 			circlePos.y *= -1;
@@ -369,19 +360,15 @@ export class Game {
 			const pointInEllipse = this.makePointInEllipse(theta);
 			normal.x = pointInEllipse.x - circlePos.x;
 			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.BALL_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.BALL_RADIUS * Math.sin(theta);
 			normal.y *= -1;
-			newCirclePos.y *= -1;
+		}
+		if (this.circle.position.y === 0 || this.circle.position.y === this.HEIGHT) {
+			Matter.Body.setVelocity(this.circle, { x: this.circle.velocity.x, y: this.circle.velocity.y * -1 })
 		}
 		// 다시 x축 대칭!
 		normal.y *= -1;
-		newCirclePos.y *= -1;
 
-		newCirclePos.x += this.WIDTH / 2;
-		newCirclePos.y += this.HEIGHT / 2;
 		if (Math.sqrt(normal.x ** 2 + normal.y ** 2) <= this.BALL_RADIUS) {
-			// Matter.Body.setPosition(this.circle, newCirclePos);
 			const velocity = Matter.Body.getVelocity(this.circle);
 			if (normal.x * velocity.x + normal.y * velocity.y >= 0) {
 				const theta = Math.atan2(normal.y, normal.x);
@@ -393,73 +380,22 @@ export class Game {
 		}
 	}
 
-	private ellipseLimit() {
-		const circlePos = { x: this.myPaddle.position.x - this.WIDTH / 2, y: this.myPaddle.position.y - this.HEIGHT / 2 };
-		const newCirclePos = { x: 0, y: 0 };
-		const normal = { x: 0, y: 0 };
-		// x축 대칭
-		circlePos.y *= -1;
-		if (0 < circlePos.x && 0 < circlePos.y) { // 1사분면
-			const theta = this.oneQuadrantLogic(circlePos);
-			const pointInEllipse = this.makePointInEllipse(theta);
-			normal.x = pointInEllipse.x - circlePos.x;
-			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.PADDLE_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.PADDLE_RADIUS * Math.sin(theta);
-		}
-		else if (0 > circlePos.x && 0 < circlePos.y) { // 2사분면
-			circlePos.x *= -1;
-			const theta = this.oneQuadrantLogic(circlePos);
-			const pointInEllipse = this.makePointInEllipse(theta);
-			normal.x = pointInEllipse.x - circlePos.x;
-			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.PADDLE_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.PADDLE_RADIUS * Math.sin(theta);
-			normal.x *= -1;
-			newCirclePos.x *= -1;
-		}
-		else if (0 > circlePos.x && 0 > circlePos.y) { // 3사분면
-			circlePos.x *= -1;
-			circlePos.y *= -1;
-			const theta = this.oneQuadrantLogic(circlePos);
-			const pointInEllipse = this.makePointInEllipse(theta);
-			normal.x = pointInEllipse.x - circlePos.x;
-			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.PADDLE_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.PADDLE_RADIUS * Math.sin(theta);
-			normal.x *= -1;
-			normal.y *= -1;
-			newCirclePos.x *= -1;
-			newCirclePos.y *= -1;
-		}
-		else if (0 < circlePos.x && 0 > circlePos.y) { // 4사분면
-			circlePos.y *= -1;
-			const theta = this.oneQuadrantLogic(circlePos);
-			const pointInEllipse = this.makePointInEllipse(theta);
-			normal.x = pointInEllipse.x - circlePos.x;
-			normal.y = pointInEllipse.y - circlePos.y;
-			newCirclePos.x = pointInEllipse.x - this.PADDLE_RADIUS * Math.cos(theta);
-			newCirclePos.y = pointInEllipse.y - this.PADDLE_RADIUS * Math.sin(theta);
-			normal.y *= -1;
-			newCirclePos.y *= -1;
-		}
-		// 다시 x축 대칭!
-		normal.y *= -1;
-		newCirclePos.y *= -1;
-
-		newCirclePos.x += this.WIDTH / 2;
-		newCirclePos.y += this.HEIGHT / 2;
-		if (Math.sqrt(normal.x ** 2 + normal.y ** 2) <= this.PADDLE_RADIUS) {
-			Matter.Body.setPosition(this.myPaddle, newCirclePos);
-		}
-	}
-
 	private setEllipse() {
-		const ellipseVerticesArray: Vector[] = [];
 		const ellipseMajorAxis = this.HEIGHT;
 		const ellipseMinorAxis = this.WIDTH;
+		const ellipseVerticesArray: Vector[] = [];
 		const ellipseVertices = 1000;
-
+		for (let i = 0; i < 1000; i++) {
+			const a = Matter.Bodies.circle(
+				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 10),
+				this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 10),
+				10,
+				{
+					isStatic: true,
+				}
+			);
+			Matter.Composite.add(this.world, a);
+		}
 		for (let i = 0; i < ellipseVertices; i++) {
 			const x = (ellipseMinorAxis / 2) * Math.cos(i);
 			const y = (ellipseMajorAxis / 2) * Math.sin(i);
@@ -477,16 +413,17 @@ export class Game {
 
 	private limitVelocity() {
 		//속도제한
-		if (this.circle.velocity.x > 35) {
+		const limit = 35
+		if (this.circle.velocity.x > limit) {
 			Matter.Body.setVelocity(this.circle, {
-				x: 35,
+				x: limit,
 				y: this.circle.velocity.y,
 			});
 		}
-		if (this.circle.velocity.y > 35) {
+		if (this.circle.velocity.y > limit) {
 			Matter.Body.setVelocity(this.circle, {
 				x: this.circle.velocity.x,
-				y: 35,
+				y: limit,
 			});
 		}
 	}
@@ -649,23 +586,21 @@ export class Game {
 			this.myPaddleY = mousePos.y - this.PADDLE_RADIUS / 2;
 			this.myPaddleX = mousePos.x - this.PADDLE_RADIUS / 2;
 			Matter.Body.setPosition(this.myPaddle, { x: this.myPaddleX, y: this.myPaddleY });
-			//패들 중앙선 침범 금지~!
+			// 패들 중앙선 침범 금지~!
 			if (this.myPaddle.position.y < this.HEIGHT / 2 + this.PADDLE_RADIUS) {
 				Matter.Body.setPosition(this.myPaddle, {
 					x: this.myPaddle.position.x,
 					y: this.HEIGHT / 2 + this.PADDLE_RADIUS,
 				});
 			}
-			//타원 패들
-			this.ellipseLimit();
 			const deltaT = Date.now() - prevTimestamp + 1;
 			this.myPaddleVelocity = {
 				x: (this.myPaddle.position.x - prevPointX) / deltaT,
 				y: (this.myPaddle.position.y - prevPointY) / deltaT,
 			};
 		});
-		// //add Ellipse
-		// this.setEllipse();
+		//add Ellipse
+		this.setEllipse();
 		// //중력객체 추가
 		// this.setGravity();
 		//add paddles
@@ -716,10 +651,10 @@ export class Game {
 			}
 			//paddle2의 속도추가
 			Matter.Body.setPosition(this.counterPaddle, { x: this.counterPaddle.position.x + this.counterPaddleVelocity.x, y: this.counterPaddle.position.y + this.counterPaddleVelocity.y })
-			//반사!
+			// 반사!
 			this.wallReflection(velocity)
-			// // 타원 반사!
-			// this.ellipseReflection();
+			// 타원 반사!
+			this.ellipseReflection();
 			// //점수 겟또
 			// this.getScore();
 			//속도제한
