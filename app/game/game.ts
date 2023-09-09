@@ -49,14 +49,14 @@ function writeFrame(payload: ByteBuffer, frame: Frame) {
 	payload.write1(frame.player2Score);
 }
 
-const enum GameServerOpcode {
+export const enum GameServerOpcode {
 	HANDSHAKE,
 	START,
 	JOIN,
 	FRAME
 }
 
-const enum GameClientOpcode {
+export const enum GameClientOpcode {
 	INITIALIZE,
 	ACCEPT,
 	REJECT,
@@ -365,6 +365,9 @@ export class Game {
 		if (this.circle.position.y === 0 || this.circle.position.y === this.HEIGHT) {
 			Matter.Body.setVelocity(this.circle, { x: this.circle.velocity.x, y: this.circle.velocity.y * -1 })
 		}
+		if (this.circle.position.x === 0 || this.circle.position.x === this.WIDTH) {
+			Matter.Body.setVelocity(this.circle, { x: this.circle.velocity.x * -1, y: this.circle.velocity.y })
+		}
 		// 다시 x축 대칭!
 		normal.y *= -1;
 
@@ -385,17 +388,17 @@ export class Game {
 		const ellipseMinorAxis = this.WIDTH;
 		const ellipseVerticesArray: Vector[] = [];
 		const ellipseVertices = 1000;
-		// for (let i = 0; i < 1000; i++) {
-		// 	const a = Matter.Bodies.circle(
-		// 		this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 10),
-		// 		this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 10),
-		// 		10,
-		// 		{
-		// 			isStatic: true,
-		// 		}
-		// 	);
-		// 	Matter.Composite.add(this.world, a);
-		// }
+		for (let i = 0; i < 500; i++) {
+			const a = Matter.Bodies.circle(
+				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 10),
+				this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 10),
+				10,
+				{
+					isStatic: true,
+				}
+			);
+			Matter.Composite.add(this.world, a);
+		}
 		for (let i = 0; i < ellipseVertices; i++) {
 			const x = (ellipseMinorAxis / 2) * Math.cos(i);
 			const y = (ellipseMajorAxis / 2) * Math.sin(i);
@@ -517,11 +520,14 @@ export class Game {
 		if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
 			return;
 		}
-		if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 0) {
-			if (this.ellipseInOut(this.frames[this.frames.length - 3].ball.position) < 1) {
-				Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 3].ball.position);
-			}
-		}
+		// if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 0) {
+		// 	for (let i = 0; i < 5; i++) {
+		// 		if (this.frames.length !== 0 && this.ellipseInOut(this.frames[this.frames.length - i].ball.position) < 1) {
+		// 			Matter.Body.setPosition(this.circle, this.frames[this.frames.length - i].ball.position);
+		// 			Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - i].ball.velocity);
+		// 		}
+		// 	}
+		// }
 		const myPaddle: PhysicsAttribute = {
 			position: { x: this.myPaddle.position.x, y: this.myPaddle.position.y },
 			velocity: { x: this.myPaddleVelocity.x, y: this.myPaddleVelocity.y },
@@ -548,8 +554,9 @@ export class Game {
 		}
 		this.frames.push(frame);
 		const buf = ByteBuffer.createWithOpcode(GameServerOpcode.FRAME);
+		buf.write1(this.player);
 		writeFrame(buf, frame);
-		// this.websocket.send(buf.toArray());
+		this.websocket.send(buf.toArray());
 	}
 
 	//gravity
@@ -608,8 +615,8 @@ export class Game {
 				y: (this.myPaddle.position.y - prevPointY) / deltaT,
 			};
 		});
-		//add Ellipse
-		this.setEllipse();
+		// //add Ellipse
+		// this.setEllipse();
 		// //중력객체 추가
 		// this.setGravity();
 		//add paddles
@@ -662,8 +669,8 @@ export class Game {
 			Matter.Body.setPosition(this.counterPaddle, { x: this.counterPaddle.position.x + this.counterPaddleVelocity.x, y: this.counterPaddle.position.y + this.counterPaddleVelocity.y })
 			// 반사!
 			this.wallReflection(velocity)
-			// 타원 반사!
-			this.ellipseReflection();
+			// // 타원 반사!
+			// this.ellipseReflection();
 			// //점수 겟또
 			// this.getScore();
 			//속도제한

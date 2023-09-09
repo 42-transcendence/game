@@ -1,15 +1,39 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Game } from './game/game'
+import { Game, GameClientOpcode, GameServerOpcode } from './game/game'
+import { ByteBuffer } from "./library/byte-buffer";
 
 export function GameCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
+        const webSocket = new WebSocket("ws://localhost:3002");
+        webSocket.binaryType = "arraybuffer";
+        webSocket.onopen = () => {
+            console.log("웹소켓서버와 연결 성공");
+        };
 
-        const game: Game = new Game(new WebSocket("ws://localhost:3001"), 1, canvasRef);
-        game.start();
+        // 2-2) 메세지 수신 이벤트 처리
+        webSocket.onmessage = function (event) {
+            const buf = ByteBuffer.from(event.data);
+            const opcode = buf.readOpcode();
+            if (opcode === GameClientOpcode.START) {
+                const game: Game = new Game(webSocket, 1, canvasRef);
+                game.start();
+            }
+        }
+
+        // 2-3) 연결 종료 이벤트 처리
+        webSocket.onclose = function () {
+            console.log("서버 웹소켓 연결 종료");
+        }
+
+        // 2-4) 에러 발생 이벤트 처리
+        webSocket.onerror = function (event) {
+            console.log(event)
+        }
+
 
     }, []);
 
