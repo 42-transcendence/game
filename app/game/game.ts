@@ -385,17 +385,17 @@ export class Game {
 		const ellipseMinorAxis = this.WIDTH;
 		const ellipseVerticesArray: Vector[] = [];
 		const ellipseVertices = 1000;
-		for (let i = 0; i < 1000; i++) {
-			const a = Matter.Bodies.circle(
-				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 10),
-				this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 10),
-				10,
-				{
-					isStatic: true,
-				}
-			);
-			Matter.Composite.add(this.world, a);
-		}
+		// for (let i = 0; i < 1000; i++) {
+		// 	const a = Matter.Bodies.circle(
+		// 		this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 10),
+		// 		this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 10),
+		// 		10,
+		// 		{
+		// 			isStatic: true,
+		// 		}
+		// 	);
+		// 	Matter.Composite.add(this.world, a);
+		// }
 		for (let i = 0; i < ellipseVertices; i++) {
 			const x = (ellipseMinorAxis / 2) * Math.cos(i);
 			const y = (ellipseMajorAxis / 2) * Math.sin(i);
@@ -509,9 +509,18 @@ export class Game {
 		this.originSymmetry(frame.ball.velocity);
 	}
 
+	private ellipseInOut(point: { x: number, y: number }) {
+		return ((((point.x - this.WIDTH / 2) ** 2) / ((this.WIDTH / 2) ** 2)) + (((point.y - this.HEIGHT / 2) ** 2) / ((this.HEIGHT / 2) ** 2)));
+	}
+
 	private sendFrame(paddle1Hit: boolean, paddle2Hit: boolean) {
 		if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
 			return;
+		}
+		if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 0) {
+			if (this.ellipseInOut(this.frames[this.frames.length - 3].ball.position) < 1) {
+				Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 3].ball.position);
+			}
 		}
 		const myPaddle: PhysicsAttribute = {
 			position: { x: this.myPaddle.position.x, y: this.myPaddle.position.y },
@@ -540,7 +549,7 @@ export class Game {
 		this.frames.push(frame);
 		const buf = ByteBuffer.createWithOpcode(GameServerOpcode.FRAME);
 		writeFrame(buf, frame);
-		this.websocket.send(buf.toArray());
+		// this.websocket.send(buf.toArray());
 	}
 
 	//gravity
@@ -663,8 +672,8 @@ export class Game {
 			// this.attractive(this.attractiveBody1, this.circle, 1);
 			// this.attractive(this.attractiveBody2, this.circle, 0.5);
 
-			// //프레임 보내기
-			// this.sendFrame(paddle1Hit, paddle2Hit);
+			//프레임 보내기
+			this.sendFrame(paddle1Hit, paddle2Hit);
 
 			//승점계산
 			this.judgeWinner();
