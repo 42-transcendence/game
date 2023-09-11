@@ -19,7 +19,9 @@ export function GameCanvas() {
             const buf = ByteBuffer.from(event.data);
             const opcode = buf.readOpcode();
             if (opcode === GameClientOpcode.START) {
-                const game: Game = new Game(webSocket, 1, canvasRef);
+                const field = buf.readString();
+                const gravitiesObj = JSON.parse(buf.readString())
+                const game: Game = new Game(webSocket, 1, field, gravitiesObj, canvasRef);
                 game.start();
             }
         }

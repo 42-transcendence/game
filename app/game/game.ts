@@ -91,6 +91,11 @@ type Frame = {
 	player1Score: number,
 	player2Score: number
 }
+type GravityObj = {
+	pos: { x: number, y: number },
+	radius: number,
+	force: number
+}
 
 export class Game {
 	private WIDTH = 1000;
@@ -156,9 +161,12 @@ export class Game {
 	private frames: Frame[] = [];
 	private circleVelocity = { x: 15, y: 15 };
 
-	constructor(private websocket: WebSocket, private readonly player: number, canvasRef: RefObject<HTMLCanvasElement>) {
+	constructor(private websocket: WebSocket, private readonly player: number, private readonly field: string, private readonly gravity: GravityObj[], canvasRef: RefObject<HTMLCanvasElement>) {
 		if (this.player !== 1 && this.player !== 2) {
 			// 플레이어에 이상한 넘버가 들어갔을때 에러처리;
+		}
+		if (field !== "normal" && field !== "ellipse") {
+			// 필드에 이상한 문자열이 들어갔을때 에러처리;
 		}
 		if (this.player === 2) { // 원점대칭할 점
 			this.originSymmetry(this.circleVelocity);
@@ -441,37 +449,6 @@ export class Game {
 		}
 	}
 
-	private getScore() {
-		//점수 겟또
-		if (this.circle.position.y < this.BALL_RADIUS) {
-			if (this.player === 1) {
-				this.player1Score++;
-			}
-			else if (this.player === 2) {
-				this.player2Score++;
-			}
-			Matter.Body.setPosition(this.circle, {
-				x: this.WIDTH / 2,
-				y: this.HEIGHT / 2,
-			});
-			Matter.Body.setVelocity(this.circle, { x: -15, y: -15 });
-			Matter.Body.setAngularVelocity(this.circle, 0);
-		} else if (this.circle.position.y > this.HEIGHT - this.BALL_RADIUS) {
-			if (this.player === 1) {
-				this.player2Score++;
-			}
-			else if (this.player === 2) {
-				this.player1Score++;
-			}
-			Matter.Body.setPosition(this.circle, {
-				x: this.WIDTH / 2,
-				y: this.HEIGHT / 2,
-			});
-			Matter.Body.setVelocity(this.circle, { x: 15, y: 15 });
-			Matter.Body.setAngularVelocity(this.circle, 0);
-		}
-	}
-
 	private drawScore() {
 		if (this.canvasContext === null)
 			return;
@@ -530,14 +507,12 @@ export class Game {
 		if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
 			return;
 		}
-		// if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 0) {
-		// 	for (let i = 0; i < 5; i++) {
-		// 		if (this.frames.length !== 0 && this.ellipseInOut(this.frames[this.frames.length - i].ball.position) < 1) {
-		// 			Matter.Body.setPosition(this.circle, this.frames[this.frames.length - i].ball.position);
-		// 			Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - i].ball.velocity);
-		// 		}
-		// 	}
-		// }
+		if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 0) {
+			if (this.ellipseInOut(this.frames[this.frames.length - 2].ball.position) < 1) {
+				Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 2].ball.position);
+				Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - 2].ball.velocity);
+			}
+		}
 		const myPaddle: PhysicsAttribute = {
 			position: { x: this.myPaddle.position.x, y: this.myPaddle.position.y },
 			velocity: { x: this.myPaddleVelocity.x, y: this.myPaddleVelocity.y },
@@ -571,37 +546,35 @@ export class Game {
 	}
 
 	//gravity
-	private attractive(attractiveBody: Matter.Body, body: Matter.Body, gravityConstant: number) {
-		const normal = { x: attractiveBody.position.x - body.position.x, y: attractiveBody.position.y - body.position.y }
+	private allAttractive() {
+		for (let i = 0; i < this.gravity.length; i++) {
+			this.attractive(this.gravity[i].pos, this.circle, this.gravity[i].force);
+		}
+	}
+
+	private attractive(attractiveCenter: { x: number, y: number }, body: Matter.Body, gravityConstant: number) {
+		const normal = { x: attractiveCenter.x - body.position.x, y: attractiveCenter.y - body.position.y }
 		const distance = Math.sqrt(normal.x * normal.x + normal.y * normal.y);
 		const force = { x: gravityConstant * normal.x / (distance * + 1), y: gravityConstant * normal.y / (distance + 1) };
 		Matter.Body.setVelocity(body, { x: body.velocity.x + force.x / 3, y: body.velocity.y + force.y / 3 })
 	}
 
-	// private setGravity() {
-	// 	// // gravity object
-	// 	const attractiveBody1 = Matter.Bodies.circle(
-	// 		700,
-	// 		1200,
-	// 		50,
-	// 		{
-	// 			isStatic: true,
-	// 			collisionFilter: {
-	// 				mask: this.lineCategory
-	// 			}
-	// 		});
-	// 	const attractiveBody2 = Matter.Bodies.circle(
-	// 		300,
-	// 		650,
-	// 		50,
-	// 		{
-	// 			isStatic: true,
-	// 			collisionFilter: {
-	// 				mask: this.lineCategory
-	// 			}
-	// 		});
-	// 	Matter.Composite.add(this.world, [attractiveBody1, attractiveBody2]);
-	// }
+	private setGravity() {
+		// // gravity object
+		for (let i = 0; i < this.gravity.length; i++) {
+			const attractive = Matter.Bodies.circle(
+				this.gravity[i].pos.x,
+				this.gravity[i].pos.y,
+				this.gravity[i].radius,
+				{
+					isStatic: true,
+					collisionFilter: {
+						mask: this.lineCategory
+					}
+				});
+			Matter.Composite.add(this.world, attractive);
+		}
+	}
 
 	start() {
 		Matter.Render.run(this.render);
@@ -626,10 +599,14 @@ export class Game {
 				y: (this.myPaddle.position.y - prevPointY) / deltaT,
 			};
 		});
-		// //add Ellipse
-		// this.setEllipse();
-		// //중력객체 추가
-		// this.setGravity();
+		//add Ellipse
+		if (this.field === "ellipse") {
+			this.setEllipse();
+		}
+		//중력객체 추가
+		if (this.gravity.length > 0) {
+			this.setGravity();
+		}
 		//add paddles
 		Matter.Composite.add(this.world, this.myPaddle);
 		Matter.Composite.add(this.world, this.counterPaddle);
@@ -679,16 +656,17 @@ export class Game {
 			//paddle2의 속도추가
 			Matter.Body.setPosition(this.counterPaddle, { x: this.counterPaddle.position.x + this.counterPaddleVelocity.x, y: this.counterPaddle.position.y + this.counterPaddleVelocity.y })
 			// 반사!
-			this.wallReflection(velocity)
-			// // 타원 반사!
-			// this.ellipseReflection();
-			// //점수 겟또
-			// this.getScore();
+			// 타원 반사!
+			if (this.field === "ellipse") {
+				this.ellipseReflection();
+			}
+			else {
+				this.wallReflection(velocity)
+			}
 			//속도제한
 			this.limitVelocity();
-			// //중력!
-			// this.attractive(this.attractiveBody1, this.circle, 1);
-			// this.attractive(this.attractiveBody2, this.circle, 0.5);
+			//중력!
+			this.allAttractive();
 
 			//프레임 보내기
 			this.sendFrame(paddle1Hit, paddle2Hit);
