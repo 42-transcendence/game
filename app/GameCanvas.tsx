@@ -8,7 +8,7 @@ export function GameCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
-        const webSocket = new WebSocket("ws://10.11.2.6:3002");
+        const webSocket = new WebSocket("ws://localhost:3002");
         webSocket.binaryType = "arraybuffer";
         webSocket.onopen = () => {
             console.log("웹소켓서버와 연결 성공");

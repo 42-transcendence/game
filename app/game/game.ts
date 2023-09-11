@@ -159,7 +159,7 @@ export class Game {
 	});
 	private framesPerSecond = 60;
 	private frames: Frame[] = [];
-	private circleVelocity = { x: 15, y: 15 };
+	private circleVelocity = { x: 17.5, y: 35 };
 
 	constructor(private websocket: WebSocket, private readonly player: number, private readonly field: string, private readonly gravity: GravityObj[], canvasRef: RefObject<HTMLCanvasElement>) {
 		if (this.player !== 1 && this.player !== 2) {
@@ -409,11 +409,11 @@ export class Game {
 		const ellipseMinorAxis = this.WIDTH;
 		const ellipseVerticesArray: Vector[] = [];
 		const ellipseVertices = 1000;
-		for (let i = 0; i < 400; i++) {
+		for (let i = 0; i < 350; i++) {
 			const a = Matter.Bodies.circle(
-				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 15),
-				this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 15),
-				15,
+				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 20),
+				this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 20),
+				20,
 				{
 					isStatic: true,
 				}
@@ -511,12 +511,12 @@ export class Game {
 		if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
 			return;
 		}
-		if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 5) {
-			if (this.ellipseInOut(this.frames[this.frames.length - 5].ball.position) < 1) {
-				Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 5].ball.position);
-				Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - 5].ball.velocity);
-			}
-		}
+		// if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 5) {
+		// 	if (this.ellipseInOut(this.frames[this.frames.length - 5].ball.position) < 1) {
+		// 		Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 5].ball.position);
+		// 		Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - 5].ball.velocity);
+		// 	}
+		// }
 		const myPaddle: PhysicsAttribute = {
 			position: { x: this.myPaddle.position.x, y: this.myPaddle.position.y },
 			velocity: { x: this.myPaddleVelocity.x, y: this.myPaddleVelocity.y },
@@ -665,9 +665,7 @@ export class Game {
 			if (this.field === "ellipse") {
 				this.ellipseReflection();
 			}
-			else {
-				this.wallReflection(velocity)
-			}
+			this.wallReflection(velocity)
 			//속도제한
 			this.limitVelocity();
 			//중력!
