@@ -170,6 +170,9 @@ export class Game {
 		}
 		if (this.player === 2) { // 원점대칭할 점
 			this.originSymmetry(this.circleVelocity);
+			for (let i = 0; i < this.gravity.length; i++) {
+				this.midpointSymmetry(this.gravity[i].pos);
+			}
 		}
 		// XXX
 		if (canvasRef.current === null) {
@@ -406,11 +409,11 @@ export class Game {
 		const ellipseMinorAxis = this.WIDTH;
 		const ellipseVerticesArray: Vector[] = [];
 		const ellipseVertices = 1000;
-		for (let i = 0; i < 500; i++) {
+		for (let i = 0; i < 400; i++) {
 			const a = Matter.Bodies.circle(
-				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 10),
-				this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 10),
-				10,
+				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 15),
+				this.HEIGHT / 2 + Math.sin(i) * ((ellipseMajorAxis / 2) + 15),
+				15,
 				{
 					isStatic: true,
 				}
@@ -503,14 +506,15 @@ export class Game {
 		return ((((point.x - this.WIDTH / 2) ** 2) / ((this.WIDTH / 2) ** 2)) + (((point.y - this.HEIGHT / 2) ** 2) / ((this.HEIGHT / 2) ** 2)));
 	}
 
+
 	private sendFrame(paddle1Hit: boolean, paddle2Hit: boolean) {
 		if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
 			return;
 		}
-		if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 0) {
-			if (this.ellipseInOut(this.frames[this.frames.length - 2].ball.position) < 1) {
-				Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 2].ball.position);
-				Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - 2].ball.velocity);
+		if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 5) {
+			if (this.ellipseInOut(this.frames[this.frames.length - 5].ball.position) < 1) {
+				Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 5].ball.position);
+				Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - 5].ball.velocity);
 			}
 		}
 		const myPaddle: PhysicsAttribute = {
@@ -574,6 +578,7 @@ export class Game {
 				});
 			Matter.Composite.add(this.world, attractive);
 		}
+		console.log(this.gravity)
 	}
 
 	start() {
