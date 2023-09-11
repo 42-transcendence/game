@@ -553,7 +553,7 @@ export class Game {
 			paddle2: this.player === 1 ? counterPaddle : myPaddle,
 			paddle2Hit,
 			ball: {
-				position: { x: this.circle.position.x, y: this.circle.position.y },
+				position: { x: this.circle.position.x + this.circle.velocity.x, y: this.circle.position.y + this.circle.velocity.y },
 				velocity: { x: this.circle.velocity.x, y: this.circle.velocity.y },
 			},
 			player1Score: this.player1Score,
