@@ -59,8 +59,8 @@ function readFrames(payload: ByteBuffer): Frame[] {
 
 export const enum GameServerOpcode {
 	HANDSHAKE,
+	CREATE,
 	START,
-	JOIN,
 	FRAME
 }
 
@@ -69,7 +69,8 @@ export const enum GameClientOpcode {
 	ACCEPT,
 	REJECT,
 	START,
-	RESYNC,
+	RESYNC_ALL,
+	RESYNC_PART,
 	SYNC,
 	WIN,
 	LOSE,
@@ -159,7 +160,7 @@ export class Game {
 	});
 	private framesPerSecond = 60;
 	private frames: Frame[] = [];
-	private circleVelocity = { x: 17.5, y: 35 };
+	private circleVelocity = { x: 15, y: 15 };
 
 	constructor(private websocket: WebSocket, private readonly player: number, private readonly field: string, private readonly gravity: GravityObj[], canvasRef: RefObject<HTMLCanvasElement>) {
 		if (this.player !== 1 && this.player !== 2) {
@@ -215,7 +216,7 @@ export class Game {
 				//프레임 드로잉
 				this.drawFrame(frame);
 			}
-			else if (opcode === GameClientOpcode.RESYNC) {
+			else if (opcode === GameClientOpcode.RESYNC_ALL) {
 				// const frames: Frame[] = readFrames(buf);
 				const frames: Frame[] = JSON.parse(buf.readString());
 				const size = frames.length;
@@ -234,6 +235,23 @@ export class Game {
 					}, 1000 / (this.framesPerSecond * size) * i) //TODO 프레임이 꼬이는지 확인하기! - tick에 의한 드로잉과 setTimeout에 의한 프레임 드로잉이 서로 섞이지 않는지 실제로 확인해보기
 				}
 			}
+			else if (opcode === GameClientOpcode.RESYNC_PART) {
+				// const frames: Frame[] = readFrames(buf);
+				const frames: Frame[] = JSON.parse(buf.readString());
+				const size = frames.length;
+				for (let i = 0; i < size; i++) {
+					if (this.player === 2) {
+						this.reverseFrame(frames[i]);
+					}
+					this.pasteFrame(frames[i]);
+					setTimeout(() => {
+						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frames[i].paddle2.position : frames[i].paddle1.position);
+						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frames[i].paddle2.velocity : frames[i].paddle1.velocity);
+						this.player1Score = frames[i].player1Score;
+						this.player2Score = frames[i].player2Score;
+					}, 1000 / (this.framesPerSecond * size) * i) //TODO 프레임이 꼬이는지 확인하기! - tick에 의한 드로잉과 setTimeout에 의한 프레임 드로잉이 서로 섞이지 않는지 실제로 확인해보기
+				}
+			}
 		}
 	}
 
@@ -244,8 +262,8 @@ export class Game {
 	private drawFrame(frame: Frame) {
 		Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frame.paddle2.position : frame.paddle1.position);
 		Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frame.paddle2.velocity : frame.paddle1.velocity);
-		Matter.Body.setPosition(this.circle, frame.ball.position);
-		Matter.Body.setVelocity(this.circle, frame.ball.velocity);
+		// Matter.Body.setPosition(this.circle, frame.ball.position);
+		// Matter.Body.setVelocity(this.circle, frame.ball.velocity);
 		this.player1Score = frame.player1Score;
 		this.player2Score = frame.player2Score;
 	}
@@ -324,7 +342,7 @@ export class Game {
 		while (true) {
 			const theta = (upper + lower) / 2;
 			const pointInEllipse = this.makePointInEllipse(theta);
-			if ((upper - lower) * (180 / Math.PI) < 0.001) {
+			if ((upper - lower) * (180 / Math.PI) < 0.0005) {
 				const num = this.review(circlePos, pointInEllipse)
 				if (num > 1.1 || num < 0.9) {
 					upper = Math.PI * (3 / 4);
@@ -345,6 +363,7 @@ export class Game {
 			}
 		}
 	}
+
 
 	private ellipseReflection() {
 		const circlePos = { x: this.circle.position.x - this.WIDTH / 2, y: this.circle.position.y - this.HEIGHT / 2 };
@@ -515,12 +534,6 @@ export class Game {
 		if (this.player1Score === this.WIN_SCORE || this.player2Score === this.WIN_SCORE) {
 			return;
 		}
-		// if (this.ellipseInOut(this.circle.position) >= 1 && this.frames.length > 5) {
-		// 	if (this.ellipseInOut(this.frames[this.frames.length - 5].ball.position) < 1) {
-		// 		Matter.Body.setPosition(this.circle, this.frames[this.frames.length - 5].ball.position);
-		// 		Matter.Body.setVelocity(this.circle, this.frames[this.frames.length - 5].ball.velocity);
-		// 	}
-		// }
 		const myPaddle: PhysicsAttribute = {
 			position: { x: this.myPaddle.position.x, y: this.myPaddle.position.y },
 			velocity: { x: this.myPaddleVelocity.x, y: this.myPaddleVelocity.y },
