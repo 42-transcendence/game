@@ -1,5 +1,5 @@
 import { ByteBuffer } from "../library/byte-buffer";
-import Matter, { Vector } from "matter-js";
+import Matter, { Bodies, Vector } from "matter-js";
 import { RefObject } from "react";
 import { JsxEmit } from "typescript";
 
@@ -392,7 +392,8 @@ export class Game {
 		// 다시 x축 대칭!
 		normal.y *= -1;
 
-		if (Math.sqrt(normal.x ** 2 + normal.y ** 2) <= this.BALL_RADIUS && this.ellipseInOut(this.circle.position) < 1) {
+		const inOutCheck = this.ellipseInOut(this.circle.position);
+		if (Math.sqrt(normal.x ** 2 + normal.y ** 2) <= this.BALL_RADIUS && inOutCheck < 1) {
 			const velocity = Matter.Body.getVelocity(this.circle);
 			if (normal.x * velocity.x + normal.y * velocity.y >= 0) {
 				const theta = Math.atan2(normal.y, normal.x);
@@ -401,6 +402,9 @@ export class Game {
 				const newVy = velocity.x * Math.sin(2 * theta - 2 * alpha) + velocity.y * Math.cos(2 * theta - 2 * alpha);
 				Matter.Body.setVelocity(this.circle, { x: newVx * -1, y: newVy * -1 });
 			}
+		}
+		else if (inOutCheck >= 1) {
+			Matter.Body.setPosition(this.circle, { x: this.circle.position.x + 5 * normal.x, y: this.circle.position.y + 5 * normal.y });
 		}
 	}
 
