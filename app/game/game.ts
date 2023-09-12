@@ -392,7 +392,7 @@ export class Game {
 		// 다시 x축 대칭!
 		normal.y *= -1;
 
-		if (Math.sqrt(normal.x ** 2 + normal.y ** 2) <= this.BALL_RADIUS) {
+		if (Math.sqrt(normal.x ** 2 + normal.y ** 2) <= this.BALL_RADIUS && this.ellipseInOut(this.circle.position) < 1) {
 			const velocity = Matter.Body.getVelocity(this.circle);
 			if (normal.x * velocity.x + normal.y * velocity.y >= 0) {
 				const theta = Math.atan2(normal.y, normal.x);
