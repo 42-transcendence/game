@@ -1,7 +1,6 @@
 import { ByteBuffer } from "../library/byte-buffer";
 import Matter, { Bodies, Vector } from "matter-js";
 import { RefObject } from "react";
-import { JsxEmit } from "typescript";
 
 function writePhysicsAttribute(payload: ByteBuffer, data: PhysicsAttribute) {
 	payload.write8Float(data.position.x);
@@ -213,6 +212,7 @@ export class Game {
 				}
 				//프레임 붙여넣기
 				this.pasteFrame(frame);
+				// this.frames[this.frames.length - 1] = frame;
 				//프레임 드로잉
 				this.drawFrame(frame);
 			}
@@ -225,6 +225,7 @@ export class Game {
 						this.reverseFrame(frames[i]);
 					}
 					this.pasteFrame(frames[i]);
+					// this.frames[this.frames.length - frames.length + i] = frames[i];
 					setTimeout(() => {
 						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frames[i].paddle2.position : frames[i].paddle1.position);
 						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frames[i].paddle2.velocity : frames[i].paddle1.velocity);
@@ -244,6 +245,7 @@ export class Game {
 						this.reverseFrame(frames[i]);
 					}
 					this.pasteFrame(frames[i]);
+					// this.frames[this.frames.length - frames.length + i] = frames[i];
 					setTimeout(() => {
 						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frames[i].paddle2.position : frames[i].paddle1.position);
 						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frames[i].paddle2.velocity : frames[i].paddle1.velocity);
