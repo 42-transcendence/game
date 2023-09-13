@@ -3,10 +3,10 @@ import Matter, { Bodies, Vector } from "matter-js";
 import { RefObject } from "react";
 
 function writePhysicsAttribute(payload: ByteBuffer, data: PhysicsAttribute) {
-	payload.write8Float(data.position.x);
-	payload.write8Float(data.position.y);
-	payload.write8Float(data.velocity.x);
-	payload.write8Float(data.velocity.y);
+	payload.write4Float(data.position.x);
+	payload.write4Float(data.position.y);
+	payload.write4Float(data.velocity.x);
+	payload.write4Float(data.velocity.y);
 }
 
 function writeFrame(payload: ByteBuffer, frame: Frame) {
@@ -16,22 +16,22 @@ function writeFrame(payload: ByteBuffer, frame: Frame) {
 	writePhysicsAttribute(payload, frame.paddle2);
 	payload.writeBoolean(frame.paddle2Hit);
 	writePhysicsAttribute(payload, frame.ball);
-	payload.write4(frame.player1Score);
-	payload.write4(frame.player2Score);
+	payload.write1(frame.player1Score);
+	payload.write1(frame.player2Score);
 }
 
 function writeFrames(payload: ByteBuffer, frames: Frame[]) {
-	payload.write4Unsigned(frames.length);
+	payload.write2Unsigned(frames.length);
 	for (let i = 0; i < frames.length; i++) {
 		writeFrame(payload, frames[i]);
 	}
 }
 
 function readPhysicsAttribute(payload: ByteBuffer): PhysicsAttribute {
-	const posX = payload.read8Float();
-	const posY = payload.read8Float();
-	const velocX = payload.read8Float();
-	const velocY = payload.read8Float();
+	const posX = payload.read4Float();
+	const posY = payload.read4Float();
+	const velocX = payload.read4Float();
+	const velocY = payload.read4Float();
 	return { position: { x: posX, y: posY }, velocity: { x: velocX, y: velocY } };
 }
 
@@ -42,16 +42,37 @@ function readFrame(payload: ByteBuffer): Frame {
 	const paddle2 = readPhysicsAttribute(payload);
 	const paddle2Hit = payload.readBoolean();
 	const ball = readPhysicsAttribute(payload);
-	const player1Score = payload.read4();
-	const player2Score = payload.read4();
+	const player1Score = payload.read1();
+	const player2Score = payload.read1();
 	return { id, paddle1, paddle1Hit, paddle2, paddle2Hit, ball, player1Score, player2Score };
 }
 
 function readFrames(payload: ByteBuffer): Frame[] {
-	const size = payload.read4Unsigned();
+	const size = payload.read2Unsigned();
 	const frames: Frame[] = []
 	for (let i = 0; i < size; i++) {
 		frames.push(readFrame(payload));
+	}
+	return frames;
+}
+
+function readFrameWithoutBall(payload: ByteBuffer): Frame {
+	const id = payload.read4Unsigned();
+	const paddle1 = readPhysicsAttribute(payload);
+	const paddle1Hit = payload.readBoolean();
+	const paddle2 = readPhysicsAttribute(payload);
+	const paddle2Hit = payload.readBoolean();
+	const ball: PhysicsAttribute = { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } }
+	const player1Score = payload.read1();
+	const player2Score = payload.read1();
+	return { id, paddle1, paddle1Hit, paddle2, paddle2Hit, ball, player1Score, player2Score };
+}
+
+function readFramesWithoutBall(payload: ByteBuffer): Frame[] {
+	const size = payload.read2Unsigned();
+	const frames: Frame[] = []
+	for (let i = 0; i < size; i++) {
+		frames.push(readFrameWithoutBall(payload));
 	}
 	return frames;
 }
@@ -96,7 +117,6 @@ type GravityObj = {
 	radius: number,
 	force: number
 }
-
 export class Game {
 	private WIDTH = 1000;
 	private HEIGHT = 1920;
@@ -160,6 +180,7 @@ export class Game {
 	private framesPerSecond = 60;
 	private frames: Frame[] = [];
 	private circleVelocity = { x: 15, y: 15 };
+	private frameQueue: { resyncType: GameClientOpcode, frame: Frame }[] = [];
 
 	constructor(private websocket: WebSocket, private readonly player: number, private readonly field: string, private readonly gravity: GravityObj[], canvasRef: RefObject<HTMLCanvasElement>) {
 		if (this.player !== 1 && this.player !== 2) {
@@ -205,69 +226,42 @@ export class Game {
 			const buf = ByteBuffer.from(event.data);
 			const opcode = buf.readOpcode();
 			if (opcode === GameClientOpcode.SYNC) {
-				// const frame: Frame = readFrame(buf);
-				const frame: Frame = JSON.parse(buf.readString())
-				if (this.player === 2) {
-					this.reverseFrame(frame);
-				}
-				//프레임 붙여넣기
-				this.pasteFrame(frame);
-				// this.frames[this.frames.length - 1] = frame;
-				//프레임 드로잉
-				this.drawFrame(frame);
+				console.log("in")
+				const frame: Frame = readFrame(buf);
+				// if (this.player === 2) {
+				// 	this.reverseFrame(frame);
+				// }
+				// //프레임 붙여넣기
+				// this.pasteFrame(frame);
 			}
 			else if (opcode === GameClientOpcode.RESYNC_ALL) {
-				// const frames: Frame[] = readFrames(buf);
-				const frames: Frame[] = JSON.parse(buf.readString());
+				const frames: Frame[] = readFrames(buf);
 				const size = frames.length;
 				for (let i = 0; i < size; i++) {
 					if (this.player === 2) {
 						this.reverseFrame(frames[i]);
 					}
 					this.pasteFrame(frames[i]);
-					// this.frames[this.frames.length - frames.length + i] = frames[i];
-					setTimeout(() => {
-						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frames[i].paddle2.position : frames[i].paddle1.position);
-						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frames[i].paddle2.velocity : frames[i].paddle1.velocity);
-						Matter.Body.setPosition(this.circle, frames[i].ball.position);
-						Matter.Body.setVelocity(this.circle, frames[i].ball.velocity);
-						this.player1Score = frames[i].player1Score;
-						this.player2Score = frames[i].player2Score;
-					}, 1000 / (this.framesPerSecond * size) * i) //TODO 프레임이 꼬이는지 확인하기! - tick에 의한 드로잉과 setTimeout에 의한 프레임 드로잉이 서로 섞이지 않는지 실제로 확인해보기
+					this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_ALL, frame: frames[i] })
 				}
 			}
 			else if (opcode === GameClientOpcode.RESYNC_PART) {
-				// const frames: Frame[] = readFrames(buf);
-				const frames: Frame[] = JSON.parse(buf.readString());
+				const frames: Frame[] = readFrames(buf);
+
 				const size = frames.length;
 				for (let i = 0; i < size; i++) {
 					if (this.player === 2) {
 						this.reverseFrame(frames[i]);
 					}
 					this.pasteFrame(frames[i]);
-					// this.frames[this.frames.length - frames.length + i] = frames[i];
-					setTimeout(() => {
-						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frames[i].paddle2.position : frames[i].paddle1.position);
-						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frames[i].paddle2.velocity : frames[i].paddle1.velocity);
-						this.player1Score = frames[i].player1Score;
-						this.player2Score = frames[i].player2Score;
-					}, 1000 / (this.framesPerSecond * size) * i) //TODO 프레임이 꼬이는지 확인하기! - tick에 의한 드로잉과 setTimeout에 의한 프레임 드로잉이 서로 섞이지 않는지 실제로 확인해보기
+					this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_PART, frame: frames[i] })
 				}
 			}
 		}
 	}
 
 	private pasteFrame(frame: Frame) {
-		this.frames[frame.id] = frame;
-	}
-
-	private drawFrame(frame: Frame) {
-		Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frame.paddle2.position : frame.paddle1.position);
-		Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frame.paddle2.velocity : frame.paddle1.velocity);
-		// Matter.Body.setPosition(this.circle, frame.ball.position);
-		// Matter.Body.setVelocity(this.circle, frame.ball.velocity);
-		this.player1Score = frame.player1Score;
-		this.player2Score = frame.player2Score;
+		this.frames[frame.id] = frame
 	}
 
 	private midpointSymmetry(point: { x: number, y: number }) {
@@ -344,8 +338,8 @@ export class Game {
 		while (true) {
 			const theta = (upper + lower) / 2;
 			const pointInEllipse = this.makePointInEllipse(theta);
+			const num = this.review(circlePos, pointInEllipse)
 			if ((upper - lower) * (180 / Math.PI) < 0.0005) {
-				const num = this.review(circlePos, pointInEllipse)
 				if (num > 1.1 || num < 0.9) {
 					upper = Math.PI * (3 / 4);
 					lower = -1 * Math.PI / 4;
@@ -360,7 +354,7 @@ export class Game {
 			else if (this.determinantNormal(circlePos, pointInEllipse) > 0) {
 				lower = theta;
 			}
-			else {
+			else if (0.95 < num && num < 1.05) {
 				return theta
 			}
 		}
@@ -563,8 +557,7 @@ export class Game {
 		this.frames.push(frame);
 		const buf = ByteBuffer.createWithOpcode(GameServerOpcode.FRAME);
 		buf.write1(this.player);
-		// writeFrame(buf, frame);
-		buf.writeString(JSON.stringify(frame));
+		writeFrame(buf, frame);
 		this.websocket.send(buf.toArray());
 	}
 
@@ -657,6 +650,33 @@ export class Game {
 			// XXX
 			if (this.canvasContext === null) {
 				throw new Error("no canvas");
+			}
+			const size = this.frameQueue.length;
+			if (size > 0) {
+				for (let i = 0; i < size; i++) {
+					if (this.frameQueue[i].resyncType === GameClientOpcode.RESYNC_PART) {
+						const frame = this.frameQueue[i].frame;
+						// setTimeout(() => {
+						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frame.paddle2.position : frame.paddle1.position);
+						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frame.paddle2.velocity : frame.paddle1.velocity);
+						this.player1Score = frame.player1Score;
+						this.player2Score = frame.player2Score;
+						// }, 1000 / (this.framesPerSecond * size) * i);
+					}
+					else if (this.frameQueue[i].resyncType === GameClientOpcode.RESYNC_ALL) {
+						const frame = this.frameQueue[i].frame;
+						// setTimeout(() => {
+						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frame.paddle2.position : frame.paddle1.position);
+						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frame.paddle2.velocity : frame.paddle1.velocity);
+						Matter.Body.setPosition(this.circle, frame.ball.position);
+						Matter.Body.setVelocity(this.circle, frame.ball.velocity);
+						this.player1Score = frame.player1Score;
+						this.player2Score = frame.player2Score;
+						// }, 1000 / (this.framesPerSecond * size) * i);
+					}
+				}
+				console.log(size);
+				this.frameQueue.splice(0, size);
 			}
 			const collided = Matter.Collision.collides(this.myPaddle, this.circle, 0) ?? Matter.Collision.collides(this.counterPaddle, this.circle, 0);
 			const velocity = Matter.Body.getVelocity(this.circle);
