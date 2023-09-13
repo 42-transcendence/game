@@ -181,6 +181,7 @@ export class Game {
 	private frames: Frame[] = [];
 	private circleVelocity = { x: 15, y: 15 };
 	private frameQueue: { resyncType: GameClientOpcode, frame: Frame }[] = [];
+	private ignoreFrameIds: Set<number> = new Set<number>;
 
 	constructor(private websocket: WebSocket, private readonly player: number, private readonly field: string, private readonly gravity: GravityObj[], canvasRef: RefObject<HTMLCanvasElement>) {
 		if (this.player !== 1 && this.player !== 2) {
@@ -225,35 +226,42 @@ export class Game {
 		websocket.onmessage = (event: MessageEvent<ArrayBuffer>) => {
 			const buf = ByteBuffer.from(event.data);
 			const opcode = buf.readOpcode();
-			if (opcode === GameClientOpcode.SYNC) {
-				console.log("in")
-				const frame: Frame = readFrame(buf);
-				// if (this.player === 2) {
-				// 	this.reverseFrame(frame);
-				// }
-				// //프레임 붙여넣기
-				// this.pasteFrame(frame);
+			const frames: Frame[] = readFrames(buf);
+			const size = frames.length;
+			const lastSyncFrameId = frames[frames.length - 1].id;
+			const diff = this.frames[this.frames.length - 1].id + 1 - lastSyncFrameId;
+			if (diff > 1) {
+				// console.log("inDiff")
+				for (let i = 1; i < diff; i++) {
+					this.ignoreFrameIds.add(lastSyncFrameId + i);
+				}
+				this.frames.splice(lastSyncFrameId + 1, diff - 1)
 			}
-			else if (opcode === GameClientOpcode.RESYNC_ALL) {
-				const frames: Frame[] = readFrames(buf);
-				const size = frames.length;
+			if (opcode === GameClientOpcode.RESYNC_ALL) {
 				for (let i = 0; i < size; i++) {
+					if (this.ignoreFrameIds.has(frames[i].id) === true) {
+						this.ignoreFrameIds.delete(frames[i].id)
+						return;
+					}
 					if (this.player === 2) {
 						this.reverseFrame(frames[i]);
 					}
 					this.pasteFrame(frames[i]);
+					// console.log("world Frame: ", frames[i].id, "cli frame id: ", this.frames.length - 1)
 					this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_ALL, frame: frames[i] })
 				}
 			}
 			else if (opcode === GameClientOpcode.RESYNC_PART) {
-				const frames: Frame[] = readFrames(buf);
-
-				const size = frames.length;
 				for (let i = 0; i < size; i++) {
+					if (this.ignoreFrameIds.has(frames[i].id) === true) {
+						this.ignoreFrameIds.delete(frames[i].id)
+						return;
+					}
 					if (this.player === 2) {
 						this.reverseFrame(frames[i]);
 					}
 					this.pasteFrame(frames[i]);
+					// console.log("world Frame: ", frames[i].id, "cli frame id: ", this.frames.length - 1)
 					this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_PART, frame: frames[i] })
 				}
 			}
