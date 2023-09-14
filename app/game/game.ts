@@ -2,6 +2,38 @@ import { ByteBuffer } from "../library/byte-buffer";
 import Matter, { Bodies, Vector } from "matter-js";
 import { RefObject } from "react";
 
+function writeGravityObj(payload: ByteBuffer, data: GravityObj) {
+	payload.write4Float(data.pos.x);
+	payload.write4Float(data.pos.y);
+	payload.write4Unsigned(data.radius);
+	payload.write4Float(data.force);
+}
+
+function writeGravityObjs(payload: ByteBuffer, data: GravityObj[]) {
+	payload.write2Unsigned(data.length)
+	for (let i = 0; i < data.length; i++) {
+		writeGravityObj(payload, data[i]);
+	}
+}
+
+function readGravityObj(payload: ByteBuffer): GravityObj {
+	const x = payload.read4Float();
+	const y = payload.read4Float();
+	const pos = { x, y }
+	const radius = payload.read4Unsigned();
+	const force = payload.read4Float();
+	return { pos, radius, force };
+}
+
+export function readGravityObjs(payload: ByteBuffer): GravityObj[] {
+	const size = payload.read2Unsigned()
+	const gravityObjs: GravityObj[] = [];
+	for (let i = 0; i < size; i++) {
+		gravityObjs.push(readGravityObj(payload));
+	}
+	return gravityObjs;
+}
+
 function writePhysicsAttribute(payload: ByteBuffer, data: PhysicsAttribute) {
 	payload.write4Float(data.position.x);
 	payload.write4Float(data.position.y);
@@ -93,9 +125,7 @@ export const enum GameClientOpcode {
 	RESYNC_PART,
 	RESYNC_PARTOF,
 	SYNC,
-	WIN,
-	LOSE,
-	DRAW
+	FINISH,
 }
 
 // replay
@@ -185,7 +215,7 @@ export class Game {
 	private frameQueue: { resyncType: GameClientOpcode, frame: Frame }[] = [];
 	private ignoreFrameIds: Set<number> = new Set<number>;
 
-	constructor(private websocket: WebSocket, private readonly player: number, private readonly field: string, private readonly gravity: GravityObj[], canvasRef: RefObject<HTMLCanvasElement>) {
+	constructor(private websocket: WebSocket, private readonly setNo: number, private readonly player: number, private readonly field: string, private readonly gravity: GravityObj[], canvasRef: RefObject<HTMLCanvasElement>) {
 		if (this.player !== 1 && this.player !== 2) {
 			// 플레이어에 이상한 넘버가 들어갔을때 에러처리;
 		}
@@ -225,12 +255,12 @@ export class Game {
 		Matter.Body.setVelocity(this.circle, this.circleVelocity);
 
 		websocket.binaryType = 'arraybuffer';
-		websocket.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+		websocket.addEventListener("message", (event: MessageEvent<ArrayBuffer>) => {
 			const buf = ByteBuffer.from(event.data);
 			const opcode = buf.readOpcode();
-			const frames: Frame[] = readFrames(buf);
-			const size = frames.length;
 			if (opcode === GameClientOpcode.RESYNC_ALL) {
+				const frames: Frame[] = readFrames(buf);
+				const size = frames.length;
 				const lastSyncFrameId = frames[frames.length - 1].id;
 				const diff = this.frames.length - lastSyncFrameId;
 				if (diff > 1) {
@@ -252,6 +282,8 @@ export class Game {
 				}
 			}
 			else if (opcode === GameClientOpcode.RESYNC_PART) {
+				const frames: Frame[] = readFrames(buf);
+				const size = frames.length;
 				for (let i = 0; i < size; i++) {
 					if (this.ignoreFrameIds.has(frames[i].id) === true) {
 						this.ignoreFrameIds.delete(frames[i].id);
@@ -269,7 +301,11 @@ export class Game {
 					}
 				}
 			}
-		}
+			else if (opcode === GameClientOpcode.FINISH) {
+				this.player1Score = buf.read1();
+				this.player2Score = buf.read1();
+			}
+		})
 	}
 
 	private pasteFrame(frame: Frame) {
@@ -514,6 +550,13 @@ export class Game {
 			this.WIDTH / 2 - 150,
 			player1DrawPos,
 		);
+		if (this.player1Score !== 5 || this.player2Score !== 5) {
+			this.canvasContext.fillText(
+				`Set: ${this.setNo}`,
+				this.WIDTH / 2 - 50,
+				this.HEIGHT / 2 + 25,
+			);
+		}
 	}
 
 	private judgeWinner() {
@@ -523,7 +566,7 @@ export class Game {
 			this.canvasContext.fillText(
 				"Player 1 Wins!",
 				this.WIDTH / 2 - 100,
-				this.HEIGHT / 2,
+				this.HEIGHT / 2 - 25,
 			);
 			Matter.Engine.clear(this.engine);
 			Matter.Render.stop(this.render);
@@ -532,7 +575,7 @@ export class Game {
 			this.canvasContext.fillText(
 				"Player 2 Wins!",
 				this.WIDTH / 2 - 100,
-				this.HEIGHT / 2,
+				this.HEIGHT / 2 - 25,
 			);
 			Matter.Engine.clear(this.engine);
 			Matter.Render.stop(this.render);

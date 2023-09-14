@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Game, GameClientOpcode, GameServerOpcode } from './game/game'
+import { Game, GameClientOpcode, GameServerOpcode, readGravityObjs } from './game/game'
 import { ByteBuffer } from "./library/byte-buffer";
 
 export function GameCanvas() {
@@ -20,8 +20,10 @@ export function GameCanvas() {
             const opcode = buf.readOpcode();
             if (opcode === GameClientOpcode.START) {
                 const field = buf.readString();
-                const gravitiesObj = JSON.parse(buf.readString())
-                const game: Game = new Game(webSocket, 1, field, gravitiesObj, canvasRef);
+                const gravitiesObj = readGravityObjs(buf);
+                console.log(gravitiesObj);
+                const setNo = buf.read1();
+                const game: Game = new Game(webSocket, setNo, 1, field, gravitiesObj, canvasRef);
                 game.start();
             }
         }
