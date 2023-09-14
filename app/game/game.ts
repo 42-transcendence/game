@@ -91,6 +91,7 @@ export const enum GameClientOpcode {
 	START,
 	RESYNC_ALL,
 	RESYNC_PART,
+	RESYNC_PARTOF,
 	SYNC,
 	WIN,
 	LOSE,
@@ -122,6 +123,7 @@ export class Game {
 	private HEIGHT = 1920;
 	private BALL_RADIUS = 36;
 	private PADDLE_RADIUS = 80;
+	private GOAL_RADIUS = this.PADDLE_RADIUS + 8;
 	private WIN_SCORE = 5;
 	//score
 	private player1Score = 0;
@@ -228,41 +230,43 @@ export class Game {
 			const opcode = buf.readOpcode();
 			const frames: Frame[] = readFrames(buf);
 			const size = frames.length;
-			const lastSyncFrameId = frames[frames.length - 1].id;
-			const diff = this.frames[this.frames.length - 1].id + 1 - lastSyncFrameId;
-			if (diff > 1) {
-				// console.log("inDiff")
-				for (let i = 1; i < diff; i++) {
-					this.ignoreFrameIds.add(lastSyncFrameId + i);
-				}
-				this.frames.splice(lastSyncFrameId + 1, diff - 1)
-			}
 			if (opcode === GameClientOpcode.RESYNC_ALL) {
+				const lastSyncFrameId = frames[frames.length - 1].id;
+				const diff = this.frames.length - lastSyncFrameId;
+				if (diff > 1) {
+					for (let i = 1; i < diff; i++) {
+						this.ignoreFrameIds.add(lastSyncFrameId + i);
+					}
+					this.frames.splice(lastSyncFrameId + 1, diff - 1)
+				} // 전부 리싱크하는 경우 그 이후의 프레임은 무시하고 삭제하도록 설정
 				for (let i = 0; i < size; i++) {
 					if (this.ignoreFrameIds.has(frames[i].id) === true) {
 						this.ignoreFrameIds.delete(frames[i].id)
-						return;
+						continue;
 					}
 					if (this.player === 2) {
 						this.reverseFrame(frames[i]);
 					}
 					this.pasteFrame(frames[i]);
-					// console.log("world Frame: ", frames[i].id, "cli frame id: ", this.frames.length - 1)
 					this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_ALL, frame: frames[i] })
 				}
 			}
 			else if (opcode === GameClientOpcode.RESYNC_PART) {
 				for (let i = 0; i < size; i++) {
 					if (this.ignoreFrameIds.has(frames[i].id) === true) {
-						this.ignoreFrameIds.delete(frames[i].id)
-						return;
+						this.ignoreFrameIds.delete(frames[i].id);
+						if (this.player === 2) {
+							this.reverseFrame(frames[i]);
+						}
+						this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_PARTOF, frame: frames[i] })
+					} // 무시하는 프레임에 등록된 경우 상대 패들만 싱크하고 나머지는 무시
+					else {
+						if (this.player === 2) {
+							this.reverseFrame(frames[i]);
+						}
+						this.pasteFrame(frames[i]);
+						this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_PART, frame: frames[i] })
 					}
-					if (this.player === 2) {
-						this.reverseFrame(frames[i]);
-					}
-					this.pasteFrame(frames[i]);
-					// console.log("world Frame: ", frames[i].id, "cli frame id: ", this.frames.length - 1)
-					this.frameQueue.push({ resyncType: GameClientOpcode.RESYNC_PART, frame: frames[i] })
 				}
 			}
 		}
@@ -436,6 +440,9 @@ export class Game {
 		const ellipseMinorAxis = this.WIDTH;
 		const ellipseVerticesArray: Vector[] = [];
 		const ellipseVertices = 1000;
+		const focus = Math.sqrt((ellipseMajorAxis / 2) ** 2 - (ellipseMinorAxis / 2) ** 2);
+		const focusPos1 = (this.HEIGHT / 2) + focus;
+		const focusPos2 = (this.HEIGHT / 2) - focus;
 		for (let i = 0; i < 350; i++) {
 			const a = Matter.Bodies.circle(
 				this.WIDTH / 2 + Math.cos(i) * ((ellipseMinorAxis / 2) + 20),
@@ -460,6 +467,19 @@ export class Game {
 			}
 		});
 		Matter.Composite.add(this.world, ellipse);
+		const goal1 = Matter.Bodies.circle(this.WIDTH / 2, focusPos1, this.GOAL_RADIUS, {
+			isStatic: true,
+			collisionFilter: {
+				mask: this.lineCategory
+			}
+		});
+		const goal2 = Matter.Bodies.circle(this.WIDTH / 2, focusPos2, this.GOAL_RADIUS, {
+			isStatic: true,
+			collisionFilter: {
+				mask: this.lineCategory
+			}
+		});
+		Matter.Composite.add(this.world, [goal1, goal2]);
 	}
 
 	private limitVelocity() {
@@ -598,7 +618,6 @@ export class Game {
 				});
 			Matter.Composite.add(this.world, attractive);
 		}
-		console.log(this.gravity)
 	}
 
 	start() {
@@ -671,6 +690,14 @@ export class Game {
 						this.player2Score = frame.player2Score;
 						// }, 1000 / (this.framesPerSecond * size) * i);
 					}
+					else if (this.frameQueue[i].resyncType === GameClientOpcode.RESYNC_PARTOF) {
+						const frame = this.frameQueue[i].frame;
+						// setTimeout(() => {
+						Matter.Body.setPosition(this.counterPaddle, this.player === 1 ? frame.paddle2.position : frame.paddle1.position);
+						Matter.Body.setVelocity(this.counterPaddle, this.player === 1 ? frame.paddle2.velocity : frame.paddle1.velocity);
+
+						// }, 1000 / (this.framesPerSecond * size) * i);
+					}
 					else if (this.frameQueue[i].resyncType === GameClientOpcode.RESYNC_ALL) {
 						const frame = this.frameQueue[i].frame;
 						// setTimeout(() => {
@@ -683,7 +710,6 @@ export class Game {
 						// }, 1000 / (this.framesPerSecond * size) * i);
 					}
 				}
-				console.log(size);
 				this.frameQueue.splice(0, size);
 			}
 			const collided = Matter.Collision.collides(this.myPaddle, this.circle, 0) ?? Matter.Collision.collides(this.counterPaddle, this.circle, 0);
@@ -707,7 +733,6 @@ export class Game {
 			}
 			//paddle2의 속도추가
 			Matter.Body.setPosition(this.counterPaddle, { x: this.counterPaddle.position.x + this.counterPaddleVelocity.x, y: this.counterPaddle.position.y + this.counterPaddleVelocity.y })
-			// 반사!
 			// 타원 반사!
 			if (this.field === "ellipse") {
 				this.ellipseReflection();
