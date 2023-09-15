@@ -251,7 +251,7 @@ export class Game {
 		}
 
 		this.canvasContext.font = "30px arial";
-		Matter.Body.setInertia(this.circle, 0.00001);
+		Matter.Body.setInertia(this.circle, 0.00000001);
 		Matter.Body.setVelocity(this.circle, this.circleVelocity);
 
 		websocket.binaryType = 'arraybuffer';
@@ -627,6 +627,7 @@ export class Game {
 		}
 		this.frames.push(frame);
 		const buf = ByteBuffer.createWithOpcode(GameServerOpcode.FRAME);
+		buf.write1(this.setNo);
 		buf.write1(this.player);
 		writeFrame(buf, frame);
 		this.websocket.send(buf.toArray());
