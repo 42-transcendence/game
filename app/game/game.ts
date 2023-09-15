@@ -183,6 +183,13 @@ export class Game {
 			frictionStatic: 0,
 			frictionAir: 0,
 			friction: 0,
+			render: {
+				sprite: {
+					texture: this.player === 1 ? "/game-chip-1_dummy.png" : "/game-chip-4_dummy.png",
+					yScale: 1,
+					xScale: 1,
+				},
+			}
 		},
 	);
 	// counter paddle
@@ -198,6 +205,13 @@ export class Game {
 			frictionStatic: 0,
 			frictionAir: 0,
 			friction: 0,
+			render: {
+				sprite: {
+					texture: this.player === 1 ? "/game-chip-4_dummy.png" : "/game-chip-1_dummy.png",
+					yScale: 1,
+					xScale: 1,
+				},
+			}
 		},
 	);
 	// create runner
@@ -208,6 +222,13 @@ export class Game {
 		frictionAir: 0,
 		friction: 0,
 		restitution: 1,
+		render: {
+			sprite: {
+				texture: "/ball.png",
+				yScale: 0.2,
+				xScale: 0.2,
+			},
+		}
 	});
 	private framesPerSecond = 60;
 	private frames: Frame[] = [];
@@ -241,6 +262,7 @@ export class Game {
 				height: this.HEIGHT,
 				showAngleIndicator: true,
 				showCollisions: true,
+				wireframes: false
 			},
 		});
 		this.canvas = this.render.canvas;
@@ -322,8 +344,16 @@ export class Game {
 		point.y *= -1;
 	}
 
-	private calculateMousePos(event: MouseEvent) {
+	private calculatePos(event: TouchEvent | MouseEvent) {
 		const rect = this.canvas.getBoundingClientRect();
+		if (event instanceof TouchEvent) {
+			const mouseX = event.targetTouches[0].clientX - rect.left;
+			const mouseY = event.targetTouches[0].clientY - rect.top;
+			return {
+				x: mouseX,
+				y: mouseY,
+			};
+		}
 		const mouseX = event.clientX - rect.left;
 		const mouseY = event.clientY - rect.top;
 		return {
@@ -331,6 +361,7 @@ export class Game {
 			y: mouseY,
 		};
 	}
+
 
 	//ball reflection
 	private reflection(normalVec: { x: number, y: number }, ball: Matter.Body) {
@@ -486,6 +517,9 @@ export class Game {
 				20,
 				{
 					isStatic: true,
+					render: {
+						fillStyle: '#f55a3c'
+					}
 				}
 			);
 			Matter.Composite.add(this.world, a);
@@ -500,19 +534,41 @@ export class Game {
 			isStatic: true,
 			collisionFilter: {
 				mask: this.lineCategory
-			}
+			},
+			// render: {
+			// 	sprite: {
+			// 		texture: "/background.png",
+			// 		yScale: 0.22,
+			// 		xScale: 0.18,
+			// 	},
+			// }
 		});
 		Matter.Composite.add(this.world, ellipse);
 		const goal1 = Matter.Bodies.circle(this.WIDTH / 2, focusPos1, this.GOAL_RADIUS, {
 			isStatic: true,
 			collisionFilter: {
 				mask: this.lineCategory
+			},
+			render: {
+				sprite: {
+					texture: "/blackhole.png",
+					yScale: 0.45,
+					xScale: 0.45,
+				},
 			}
+
 		});
 		const goal2 = Matter.Bodies.circle(this.WIDTH / 2, focusPos2, this.GOAL_RADIUS, {
 			isStatic: true,
 			collisionFilter: {
 				mask: this.lineCategory
+			},
+			render: {
+				sprite: {
+					texture: "/blackhole.png",
+					yScale: 0.45,
+					xScale: 0.45,
+				},
 			}
 		});
 		Matter.Composite.add(this.world, [goal1, goal2]);
@@ -658,6 +714,13 @@ export class Game {
 					isStatic: true,
 					collisionFilter: {
 						mask: this.lineCategory
+					},
+					render: {
+						sprite: {
+							texture: i === 0 ? "/planet1.png" : "/planet2.png",
+							yScale: 0.2,
+							xScale: 0.2,
+						},
 					}
 				});
 			Matter.Composite.add(this.world, attractive);
@@ -667,10 +730,11 @@ export class Game {
 	start() {
 		Matter.Render.run(this.render);
 		this.canvas.addEventListener("mousemove", (event: MouseEvent) => {
+			event.preventDefault();
 			const prevTimestamp = Date.now();
 			const prevPointX = this.myPaddle.position.x;
 			const prevPointY = this.myPaddle.position.y;
-			const mousePos = this.calculateMousePos(event);
+			const mousePos = this.calculatePos(event);
 			this.myPaddleY = mousePos.y - this.PADDLE_RADIUS / 2;
 			this.myPaddleX = mousePos.x - this.PADDLE_RADIUS / 2;
 			Matter.Body.setPosition(this.myPaddle, { x: this.myPaddleX, y: this.myPaddleY });
@@ -687,6 +751,28 @@ export class Game {
 				y: (this.myPaddle.position.y - prevPointY) / deltaT,
 			};
 		});
+		this.canvas.addEventListener("touchmove", (event: TouchEvent) => {
+			event.preventDefault();
+			const prevTimestamp = Date.now();
+			const prevPointX = this.myPaddle.position.x;
+			const prevPointY = this.myPaddle.position.y;
+			const mousePos = this.calculatePos(event);
+			this.myPaddleY = mousePos.y - this.PADDLE_RADIUS / 2;
+			this.myPaddleX = mousePos.x - this.PADDLE_RADIUS / 2;
+			Matter.Body.setPosition(this.myPaddle, { x: this.myPaddleX, y: this.myPaddleY });
+			// 패들 중앙선 침범 금지~!
+			if (this.myPaddle.position.y < this.HEIGHT / 2 + this.PADDLE_RADIUS) {
+				Matter.Body.setPosition(this.myPaddle, {
+					x: this.myPaddle.position.x,
+					y: this.HEIGHT / 2 + this.PADDLE_RADIUS,
+				});
+			}
+			const deltaT = Date.now() - prevTimestamp + 1;
+			this.myPaddleVelocity = {
+				x: (this.myPaddle.position.x - prevPointX) / deltaT,
+				y: (this.myPaddle.position.y - prevPointY) / deltaT,
+			};
+		})
 		//add Ellipse
 		if (this.field === "ellipse") {
 			this.setEllipse();
